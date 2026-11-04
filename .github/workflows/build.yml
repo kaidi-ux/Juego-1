@@ -146,7 +146,7 @@ jobs:
               private val parts = ArrayList<P>()
               private var last = System.nanoTime()
               private var saveT = 0f; private var spawnT = 0f; private var anim = 0f
-              private var W = 1f; private var sc = 1f; private var oy = 0f
+              private var W = 1f; private var sc = 1f; private var oy = 0f; private var ox = 0f; private var fit = 1f
               private val roomY: Float get() = 0.3f * W
 
               init { load() }
@@ -203,14 +203,16 @@ jobs:
               override fun onSizeChanged(nw: Int, nh: Int, ow: Int, oh: Int) {
                   super.onSizeChanged(nw, nh, ow, oh)
                   W = nw.toFloat(); sc = W / 160f
-                  oy = max(0f, (nh - 1.75f * W) / 2f)
+                  fit = min(1f, nh / (1.75f * W))
+                  ox = (W - W * fit) / 2f
+                  oy = max(0f, (nh - 1.75f * W * fit) / 2f)
               }
 
               override fun onDraw(c: Canvas) {
                   val now = System.nanoTime()
                   val dt = min(0.1f, (now - last) / 1e9f); last = now
                   c.drawColor(0xFF1E1A2B.toInt())
-                  c.save(); c.translate(0f, oy)
+                  c.save(); c.translate(ox, oy); c.scale(fit, fit)
                   if (!created) drawCreate(c) else { update(dt); drawGame(c) }
                   c.restore()
                   postInvalidateOnAnimation()
@@ -286,7 +288,7 @@ jobs:
               // ---------- toques ----------
               override fun onTouchEvent(e: MotionEvent): Boolean {
                   if (e.action != MotionEvent.ACTION_UP) return true
-                  val x = e.x; val y = e.y - oy
+                  val x = (e.x - ox) / fit; val y = (e.y - oy) / fit
                   if (!created) { createTap(y); return true }
                   val by = roomY + 176f * sc + 0.03f * W
                   if (y >= by && y <= by + 0.13f * W) {
@@ -382,87 +384,4 @@ jobs:
                       4 -> {
                           r(c, px + 3f, py + 11f, 10f, 4f, 0xFF5A3E2B); r(c, px + 2f, py + 2f, 12f, 9f, 0xFF222222)
                           val scr = if (on) (if ((anim * 6f).toInt() % 2 == 0) 0xFF6EC1FF else 0xFFFF8CC6) else 0xFF3A4A5A
-                          r(c, px + 3f, py + 3f, 10f, 7f, scr)
-                      }
-                      5 -> {
-                          r(c, px + 1f, py + 8f, 14f, 7f, 0xFF9C6B3A); r(c, px + 4f, py + 1f, 8f, 7f, 0xFF222222)
-                          r(c, px + 5f, py + 2f, 6f, 5f, if (on) 0xFF6EC1FF else 0xFF2E3B4E); r(c, px + 4f, py + 10f, 8f, 2f, 0xFFCCCCCC)
-                      }
-                      else -> {
-                          r(c, px + 5f, py + 10f, 6f, 5f, 0xFFB5653A); r(c, px + 3f, py + 3f, 10f, 8f, 0xFF3FA34D)
-                          r(c, px + 6f, py + 1f, 4f, 4f, 0xFF4CC15C)
-                      }
-                  }
-              }
-
-              private fun drawRoom(c: Canvas) {
-                  val hr = (time / 60f) % 24f
-                  val dk = if (hr < 5f) 1f else if (hr < 7f) 1f - (hr - 5f) / 2f else if (hr < 19f) 0f else if (hr < 21f) (hr - 19f) / 2f else 1f
-                  for (yy in 2..10) for (xx in 0..9) r(c, xx * 16f, yy * 16f, 16f, 16f, if ((xx + yy) % 2 == 0) 0xFFC8935A else 0xFFBE8850)
-                  r(c, 0f, 0f, 160f, 32f, 0xFF7AA6C9); r(c, 0f, 30f, 160f, 2f, 0xFF5B4636)
-                  r(c, 56f, 5f, 34f, 22f, 0xFFF5F5F5); r(c, 58f, 7f, 30f, 18f, lerp(0xFF8EDBFF, 0xFF0B1030, dk))
-                  r(c, 72f, 7f, 2f, 18f, 0xFFF5F5F5); r(c, 58f, 15f, 30f, 2f, 0xFFF5F5F5)
-                  r(c, 103f, 8f, 2f, 6f, 0xFF5B4636); r(c, 100f, 14f, 8f, 5f, 0xFFFFE08A)
-                  for (f in furn.sortedBy { it.y }) drawF(c, f)
-                  val sleeping = acting >= 0 && furn[acting].t == 0
-                  if (!sleeping) drawSim(c, sx * 16f + 8f, sy * 16f + 15f, acting < 0 && (abs(tx - sx) > 0.05f || abs(ty - sy) > 0.05f))
-                  for (q in parts) {
-                      val col = if (q.s == "Z") 0xFFFFFFFF else if (q.s == "o") 0xFF8FD8FF else 0xFFFFD866
-                      t(c, q.s, q.x, q.y, 7f, col, Paint.Align.CENTER)
-                  }
-                  if (dk > 0f) {
-                      r(c, 0f, 0f, 160f, 176f, Color.argb((dk * 125).toInt(), 10, 15, 60).toLong())
-                      tp.color = Color.argb((dk * 70).toInt(), 255, 224, 138); c.drawCircle(104f, 16f, 28f, tp)
-                  }
-              }
-
-              private fun drawGame(c: Canvas) {
-                  c.save(); c.translate(0f, roomY); c.scale(sc, sc); drawRoom(c); c.restore()
-                  r(c, 0f, 0f, W, roomY, 0xFF2A2440)
-                  t(c, mood() + " " + NAMES[name] + " · " + PERS[pers], 0.03f * W, 0.07f * W, 0.045f * W, 0xFFFFFFFF)
-                  t(c, "💰 $" + money.toInt(), 0.97f * W, 0.07f * W, 0.045f * W, 0xFFFFD866, Paint.Align.RIGHT)
-                  val m = time.toInt() % 1440
-                  t(c, "Día " + ((time / 1440f).toInt() + 1) + " · " + "%02d:%02d".format(m / 60, m % 60), 0.03f * W, 0.13f * W, 0.038f * W, 0xFFB8B0D8)
-                  if (msgT > 0f) t(c, msg, 0.97f * W, 0.13f * W, 0.032f * W, 0xFFFFFFFF, Paint.Align.RIGHT)
-                  for (i in 0..4) {
-                      val x0 = i * W / 5f; val bx = x0 + 0.02f * W; val bw = W / 5f - 0.04f * W
-                      t(c, EM[i], x0 + W / 10f, 0.215f * W, 0.05f * W, 0xFFFFFFFF, Paint.Align.CENTER)
-                      r(c, bx, 0.235f * W, bw, 0.03f * W, 0xFF15111F)
-                      val col = if (needs[i] < 25f && (anim * 3f).toInt() % 2 == 0) 0xFFFF4040 else COL[i]
-                      r(c, bx, 0.235f * W, bw * needs[i] / 100f, 0.03f * W, col)
-                  }
-                  val by = roomY + 176f * sc + 0.03f * W
-                  val lb = arrayOf("⏩ x" + speed, "🛒 Tienda", if (paused) "▶ Seguir" else "⏸ Pausa")
-                  for (i in 0..2) {
-                      rr(c, i * W / 3f + 0.015f * W, by, (i + 1) * W / 3f - 0.015f * W, by + 0.13f * W, 0xFF3B3355)
-                      t(c, lb[i], i * W / 3f + W / 6f, by + 0.085f * W, 0.045f * W, 0xFFFFFFFF, Paint.Align.CENTER)
-                  }
-                  if (shopOpen) {
-                      r(c, 0f, roomY, W, 176f * sc, 0xF01E1A2B)
-                      t(c, "Tienda  ·  💰 $" + money.toInt(), W / 2f, roomY + 0.09f * W, 0.055f * W, 0xFFFFD866, Paint.Align.CENTER)
-                      for (i in 0..6) {
-                          val ry = roomY + (i + 1) * 22f * sc
-                          rr(c, 0.03f * W, ry + 0.01f * W, 0.97f * W, ry + 22f * sc - 0.01f * W, if (money >= DEFS[i].price) 0xFF3B3355 else 0xFF2A2638)
-                          t(c, DEFS[i].n + "  ·  $" + DEFS[i].price, 0.06f * W, ry + 0.085f * W, 0.05f * W, if (money >= DEFS[i].price) 0xFFFFFFFF else 0xFF777777)
-                      }
-                  }
-              }
-
-              private fun drawCreate(c: Canvas) {
-                  anim += 0.016f
-                  t(c, "Crea tu Sim", W / 2f, 0.14f * W, 0.08f * W, 0xFFFFFFFF, Paint.Align.CENTER)
-                  c.save(); c.translate(W / 2f, 0.7f * W); c.scale(W / 45f, W / 45f)
-                  dir = 0; drawSim(c, 0f, 0f, false); c.restore()
-                  val lb = arrayOf("Nombre: " + NAMES[name], "🎨 Cambiar piel", "💇 Cambiar pelo", "👕 Cambiar ropa", "🎭 " + PERS[pers], "▶ ¡Jugar!")
-                  for (i in 0..5) {
-                      rr(c, 0.08f * W, rowTop(i), 0.92f * W, rowTop(i) + 0.115f * W, if (i == 5) 0xFF3FA34D else 0xFF3B3355)
-                      t(c, lb[i], W / 2f, rowTop(i) + 0.077f * W, 0.05f * W, 0xFFFFFFFF, Paint.Align.CENTER)
-                  }
-              }
-          }
-          EOF
-      - run: gradle assembleDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: juego-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+                          r(c, px + 3f, 
